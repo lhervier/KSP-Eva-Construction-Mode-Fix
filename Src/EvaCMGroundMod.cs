@@ -87,6 +87,28 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
         /// </summary>
         private const int BISECTION_STEPS = 12;
 
+        /// <summary>
+        /// Where the broad phase leaves its candidates. Held from one query to the next, and grown rather
+        /// than sized once: a single gizmo move runs dozens of poses times as many colliders, and the
+        /// allocating Physics.Overlap* hands back a fresh array on every one of them.
+        /// </summary>
+        private Collider[] overlapCandidates = new Collider[32];
+
+        /// <summary>
+        /// Where the casts leave their hits, kept and grown the same way <see cref="overlapCandidates"/>
+        /// is.
+        /// </summary>
+        private RaycastHit[] castHits = new RaycastHit[16];
+
+        /// <summary>The colliders of the part being moved, refreshed at each event.</summary>
+        private readonly List<Collider> solidColliders = new List<Collider>();
+
+        /// <summary>Where GetComponentsInChildren writes, before the triggers are weeded out of it.</summary>
+        private readonly List<Collider> partColliders = new List<Collider>();
+
+        /// <summary>The colliders a pose penetrates. Only filled when debug logging is on.</summary>
+        private readonly List<Collider> penetratingColliders = new List<Collider>();
+
         private Part previousPart;
         private Vector3 previousPosition;
         private Quaternion previousRotation;
@@ -148,17 +170,24 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
         }
 
         /// <summary>
-        /// Among the candidates the broad phase returned, those the collider really penetrates once
-        /// placed at <paramref name="position"/>.
+        /// Whether <paramref name="collider"/>, placed at <paramref name="position"/>, really penetrates
+        /// any of the <paramref name="candidateCount"/> first candidates the broad phase has left in
+        /// <see cref="overlapCandidates"/>.
         /// </summary>
-        private Collider[] GetPenetratingColliders(
+        private bool HasPenetratingCollider(
             Collider collider,
             Vector3 position,
-            Collider[] potentialColliders
+            int candidateCount
         ) {
-            // Filtering the colliders that have a real penetration
-            List<Collider> penetratingColliders = new List<Collider>();
-            foreach (Collider otherCollider in potentialColliders) {
+            // What is asked here is a yes or no, so the search stops on the first penetration found. Debug
+            // logging wants the whole set instead, and is the one paying for it: the remaining tests only
+            // run when it is on.
+            bool listThemAll = LOGGER.IsDebugEnabled;
+            this.penetratingColliders.Clear();
+
+            bool penetrating = false;
+            for (int i = 0; i < candidateCount; i++) {
+                Collider otherCollider = this.overlapCandidates[i];
                 if (Physics.ComputePenetration(
                     collider,
                     // The dropped position, not collider.transform.position: this test is the one that
@@ -172,21 +201,29 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
                     out Vector3 direction, 
                     out float distance
                 )) {
-                    penetratingColliders.Add(otherCollider);
+                    penetrating = true;
+                    if( !listThemAll ) {
+                        break;
+                    }
+                    this.penetratingColliders.Add(otherCollider);
                 }
             }
-            return penetratingColliders.ToArray();
+
+            if( listThemAll ) {
+                LogPenetratingColliders(collider, this.penetratingColliders);
+            }
+            return penetrating;
         }
 
-        private void LogPenetratingColliders(Collider collider, Collider[] colliders) {
-            if( colliders.Length == 0 ) return;
+        private void LogPenetratingColliders(Collider collider, List<Collider> colliders) {
+            if( colliders.Count == 0 ) return;
 
-            LOGGER.LogDebug($"Collider {collider.name}/{collider.GetType().Name} colliding with {colliders.Length} colliders");
+            LOGGER.LogDebug($"Collider {collider.name}/{collider.GetType().Name} colliding with {colliders.Count} colliders");
             foreach (Collider coll in colliders) {
                 LOGGER.LogDebug($"- {coll.name} on layer {coll.gameObject.layer} ({LayerMask.LayerToName(coll.gameObject.layer)})");
             }
-            LOGGER.LogDebug($"");
-            LOGGER.LogDebug($"Collider game hierarchy :");
+            LOGGER.LogDebug("");
+            LOGGER.LogDebug("Collider game hierarchy :");
             {
                 Transform currentTransform = collider.transform.parent;
                 while (currentTransform != null) {
@@ -194,8 +231,8 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
                     currentTransform = currentTransform.parent;
                 }
             }
-            LOGGER.LogDebug($"");
-            LOGGER.LogDebug($"Colliding colliders hierarchy :");
+            LOGGER.LogDebug("");
+            LOGGER.LogDebug("Colliding colliders hierarchy :");
             foreach (Collider coll in colliders) {
                 LOGGER.LogDebug($"- Collider {coll.name}/{coll.GetType().Name} hierarchy :");
                 Transform currentTransform = coll.transform.parent;
@@ -207,28 +244,186 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
         }
 
         bool IsCollidingWithGround(Collider collider) {
-            Collider[] colliders;
+            int candidateCount;
+            Vector3 testPosition;
             if (collider is BoxCollider boxCollider) {
-                colliders = GetBoxColliders(boxCollider);
+                candidateCount = OverlapBoxCollider(boxCollider, out testPosition);
             }
             else if (collider is CapsuleCollider capsuleCollider) {
-                colliders = GetCapsuleColliders(capsuleCollider);
+                candidateCount = OverlapCapsuleCollider(capsuleCollider, out testPosition);
             }
             else if (collider is SphereCollider sphereCollider) {
-                colliders = GetSphereColliders(sphereCollider);
+                candidateCount = OverlapSphereCollider(sphereCollider, out testPosition);
             }
             else if (collider is MeshCollider meshCollider) {
-                colliders = GetMeshColliders(meshCollider);
+                candidateCount = OverlapMeshCollider(meshCollider, out testPosition);
             }
             else {
                 LOGGER.LogError($"Unsupported collider type : {collider.GetType().Name} (position: {collider.transform.position})");
-                colliders = new Collider[0];
+                return false;
             }
-            LogPenetratingColliders(collider, colliders);
-            return colliders.Length > 0;
+            return HasPenetratingCollider(collider, testPosition, candidateCount);
         }
 
-        Collider[] GetBoxColliders(BoxCollider boxCollider) {
+        /// <summary>
+        /// The candidates the broad phase reports for the given box, left in
+        /// <see cref="overlapCandidates"/>; how many of them were written is what comes back.
+        /// </summary>
+        private int OverlapBox(Vector3 center, Vector3 halfExtents, Quaternion rotation) {
+            // A full buffer is a truncated answer, and a candidate dropped there is a penetration never
+            // tested, that is to say a part declared clear of the ground it stands in. So the query is run
+            // again on a larger buffer, which is then kept: the size settles over the first few poses.
+            while (true) {
+                int count = Physics.OverlapBoxNonAlloc(
+                    center,
+                    halfExtents,
+                    this.overlapCandidates,
+                    rotation,
+                    LAYER_MASK,
+                    QueryTriggerInteraction.Ignore
+                );
+                if (count < this.overlapCandidates.Length) {
+                    return count;
+                }
+                GrowOverlapCandidates();
+            }
+        }
+
+        /// <summary>
+        /// The candidates the broad phase reports for the given sphere, left in
+        /// <see cref="overlapCandidates"/>; how many of them were written is what comes back.
+        /// </summary>
+        private int OverlapSphere(Vector3 center, float radius) {
+            while (true) {
+                int count = Physics.OverlapSphereNonAlloc(
+                    center,
+                    radius,
+                    this.overlapCandidates,
+                    LAYER_MASK,
+                    QueryTriggerInteraction.Ignore
+                );
+                if (count < this.overlapCandidates.Length) {
+                    return count;
+                }
+                GrowOverlapCandidates();
+            }
+        }
+
+        /// <summary>
+        /// The candidates the broad phase reports for the given capsule, left in
+        /// <see cref="overlapCandidates"/>; how many of them were written is what comes back.
+        /// </summary>
+        private int OverlapCapsule(Vector3 point1, Vector3 point2, float radius) {
+            while (true) {
+                int count = Physics.OverlapCapsuleNonAlloc(
+                    point1,
+                    point2,
+                    radius,
+                    this.overlapCandidates,
+                    LAYER_MASK,
+                    QueryTriggerInteraction.Ignore
+                );
+                if (count < this.overlapCandidates.Length) {
+                    return count;
+                }
+                GrowOverlapCandidates();
+            }
+        }
+
+        private void GrowOverlapCandidates() {
+            this.overlapCandidates = new Collider[this.overlapCandidates.Length * 2];
+            LOGGER.LogDebug($"Broad phase buffer grown to {this.overlapCandidates.Length} colliders");
+        }
+
+        /// <summary>
+        /// The hits the given box sweep reports, left in <see cref="castHits"/>; how many of them were
+        /// written is what comes back.
+        /// </summary>
+        private int BoxCastHits(
+            Vector3 center,
+            Vector3 halfExtents,
+            Vector3 direction,
+            Quaternion rotation,
+            float maxDistance
+        ) {
+            // A full buffer is a truncated answer, and the hit left out could be the nearest one, that is
+            // to say the very thing the sweep is asked for. Same treatment as the broad phase: run again
+            // on a larger buffer, and keep it.
+            while (true) {
+                int count = Physics.BoxCastNonAlloc(
+                    center,
+                    halfExtents,
+                    direction,
+                    this.castHits,
+                    rotation,
+                    maxDistance,
+                    LAYER_MASK,
+                    QueryTriggerInteraction.Ignore
+                );
+                if (count < this.castHits.Length) {
+                    return count;
+                }
+                GrowCastHits();
+            }
+        }
+
+        /// <summary>
+        /// The hits the given sphere sweep reports, left in <see cref="castHits"/>; how many of them were
+        /// written is what comes back.
+        /// </summary>
+        private int SphereCastHits(Vector3 origin, float radius, Vector3 direction, float maxDistance) {
+            while (true) {
+                int count = Physics.SphereCastNonAlloc(
+                    origin,
+                    radius,
+                    direction,
+                    this.castHits,
+                    maxDistance,
+                    LAYER_MASK,
+                    QueryTriggerInteraction.Ignore
+                );
+                if (count < this.castHits.Length) {
+                    return count;
+                }
+                GrowCastHits();
+            }
+        }
+
+        /// <summary>
+        /// The hits the given capsule sweep reports, left in <see cref="castHits"/>; how many of them were
+        /// written is what comes back.
+        /// </summary>
+        private int CapsuleCastHits(
+            Vector3 point1,
+            Vector3 point2,
+            float radius,
+            Vector3 direction,
+            float maxDistance
+        ) {
+            while (true) {
+                int count = Physics.CapsuleCastNonAlloc(
+                    point1,
+                    point2,
+                    radius,
+                    direction,
+                    this.castHits,
+                    maxDistance,
+                    LAYER_MASK,
+                    QueryTriggerInteraction.Ignore
+                );
+                if (count < this.castHits.Length) {
+                    return count;
+                }
+                GrowCastHits();
+            }
+        }
+
+        private void GrowCastHits() {
+            this.castHits = new RaycastHit[this.castHits.Length * 2];
+            LOGGER.LogDebug($"Cast buffer grown to {this.castHits.Length} hits");
+        }
+
+        int OverlapBoxCollider(BoxCollider boxCollider, out Vector3 transformWorldPosition) {
             Vector3 scale = GetScale(boxCollider);
             
             // The broad phase is centered on the collider's own volume (transform + local center) and the
@@ -236,28 +431,21 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
             // shared center.
             Vector3 offset = GetGroundOffsetVector(boxCollider.transform.position);
             Vector3 volumeWorldCenter = boxCollider.transform.TransformPoint(boxCollider.center) + offset;
-            Vector3 transformWorldPosition = boxCollider.transform.position + offset;
+            transformWorldPosition = boxCollider.transform.position + offset;
 
             Vector3 scaledSize = Vector3.Scale(boxCollider.size, scale);
             Quaternion rotation = boxCollider.transform.rotation;
 
-            Collider[] potentialColliders = Physics.OverlapBox(
-                volumeWorldCenter,
-                scaledSize * 0.5f,
-                rotation,
-                LAYER_MASK,
-                QueryTriggerInteraction.Ignore
-            );
-            return GetPenetratingColliders(boxCollider, transformWorldPosition, potentialColliders);
+            return OverlapBox(volumeWorldCenter, scaledSize * 0.5f, rotation);
         }
 
-        Collider[] GetCapsuleColliders(CapsuleCollider capsuleCollider) {
+        int OverlapCapsuleCollider(CapsuleCollider capsuleCollider, out Vector3 transformWorldPosition) {
             // The broad phase is centered on the collider's own volume (transform + local center) and the
             // penetration test on the transform, so the drop is applied to both rather than to a single
             // shared center.
             Vector3 offset = GetGroundOffsetVector(capsuleCollider.transform.position);
             Vector3 volumeWorldCenter = capsuleCollider.transform.TransformPoint(capsuleCollider.center) + offset;
-            Vector3 transformWorldPosition = capsuleCollider.transform.position + offset;
+            transformWorldPosition = capsuleCollider.transform.position + offset;
 
             Vector3 scale = GetScale(capsuleCollider);
             
@@ -308,17 +496,10 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
             Vector3 point2 = volumeWorldCenter + directionVector * (height * 0.5f);
             
             // Returning the colliders that intersect the capsule.
-            Collider[] potentialColliders = Physics.OverlapCapsule(
-                point1,
-                point2,
-                scaledRadius,
-                LAYER_MASK,
-                QueryTriggerInteraction.Ignore
-            );
-            return GetPenetratingColliders(capsuleCollider, transformWorldPosition, potentialColliders);
+            return OverlapCapsule(point1, point2, scaledRadius);
         }
 
-        Collider[] GetSphereColliders(SphereCollider sphereCollider) {
+        int OverlapSphereCollider(SphereCollider sphereCollider, out Vector3 transformWorldPosition) {
             Vector3 scale = GetScale(sphereCollider);
             // For a sphere, we use the largest scale to maintain the spherical shape
             float maxScale = Mathf.Max(scale.x, Mathf.Max(scale.y, scale.z));
@@ -329,34 +510,22 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
             // shared center.
             Vector3 offset = GetGroundOffsetVector(sphereCollider.transform.position);
             Vector3 volumeWorldCenter = sphereCollider.transform.TransformPoint(sphereCollider.center) + offset;
-            Vector3 transformWorldPosition = sphereCollider.transform.position + offset;
+            transformWorldPosition = sphereCollider.transform.position + offset;
 
-            Collider[] potentialColliders = Physics.OverlapSphere(
-                volumeWorldCenter,
-                scaledRadius,
-                LAYER_MASK,
-                QueryTriggerInteraction.Ignore
-            );
-            return GetPenetratingColliders(sphereCollider, transformWorldPosition, potentialColliders);
+            return OverlapSphere(volumeWorldCenter, scaledRadius);
         }
 
-        Collider[] GetMeshColliders(MeshCollider meshCollider) {
+        int OverlapMeshCollider(MeshCollider meshCollider, out Vector3 transformWorldPosition) {
             // The broad phase is centered on the bounds and the penetration test on the transform, so the
             // drop is applied to both rather than to a single shared center.
             Vector3 offset = GetGroundOffsetVector(meshCollider.transform.position);
+            transformWorldPosition = meshCollider.transform.position + offset;
 
             // Collider.bounds is already a world space, axis aligned bounding box : its extents are world
             // units (no lossyScale to apply) and its axes are the world ones. Hence the identity rotation :
             // rotating that box with the transform would describe a volume the collider does not occupy.
-            Collider[] potentialColliders = Physics.OverlapBox(
-                meshCollider.bounds.center + offset,
-                meshCollider.bounds.extents,
-                Quaternion.identity,
-                LAYER_MASK,
-                QueryTriggerInteraction.Ignore
-            );
-
-            return GetPenetratingColliders(meshCollider, meshCollider.transform.position + offset, potentialColliders);
+            Bounds bounds = meshCollider.bounds;
+            return OverlapBox(bounds.center + offset, bounds.extents, Quaternion.identity);
         }
 
         /// <summary>
@@ -400,7 +569,7 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
         /// </summary>
         private int GetSweepStepCount(
             Part part,
-            Collider[] colliders,
+            List<Collider> colliders,
             Vector3 fromPosition,
             Quaternion fromRotation
         ) {
@@ -449,26 +618,22 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
             Vector3 origin = -direction * backoff;
             float castDistance = distance + backoff;
 
-            RaycastHit[] hits;
+            int hitCount;
             if (collider is BoxCollider boxCollider) {
-                hits = Physics.BoxCastAll(
+                hitCount = BoxCastHits(
                     boxCollider.transform.TransformPoint(boxCollider.center) + origin,
                     Vector3.Scale(boxCollider.size, scale) * 0.5f,
                     direction,
                     boxCollider.transform.rotation,
-                    castDistance,
-                    LAYER_MASK,
-                    QueryTriggerInteraction.Ignore
+                    castDistance
                 );
             }
             else if (collider is SphereCollider sphereCollider) {
-                hits = Physics.SphereCastAll(
+                hitCount = SphereCastHits(
                     sphereCollider.transform.TransformPoint(sphereCollider.center) + origin,
                     sphereCollider.radius * Mathf.Max(scale.x, Mathf.Max(scale.y, scale.z)),
                     direction,
-                    castDistance,
-                    LAYER_MASK,
-                    QueryTriggerInteraction.Ignore
+                    castDistance
                 );
             }
             else if (collider is CapsuleCollider capsuleCollider) {
@@ -504,14 +669,12 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
                         break;
                 }
                 Vector3 worldCenter = capsuleCollider.transform.TransformPoint(capsuleCollider.center) + origin;
-                hits = Physics.CapsuleCastAll(
+                hitCount = CapsuleCastHits(
                     worldCenter - directionVector * (height * 0.5f),
                     worldCenter + directionVector * (height * 0.5f),
                     scaledRadius,
                     direction,
-                    castDistance,
-                    LAYER_MASK,
-                    QueryTriggerInteraction.Ignore
+                    castDistance
                 );
             }
             else {
@@ -519,20 +682,18 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
                 // bounding box stands in for it. Reporting contact early is harmless: this only says that
                 // something is on the way, the stopping point is settled afterwards on the real shape.
                 Bounds bounds = collider.bounds;
-                hits = Physics.BoxCastAll(
+                hitCount = BoxCastHits(
                     bounds.center + origin,
                     bounds.extents,
                     direction,
                     Quaternion.identity,
-                    castDistance,
-                    LAYER_MASK,
-                    QueryTriggerInteraction.Ignore
+                    castDistance
                 );
             }
 
             float reachable = distance;
-            foreach (RaycastHit hit in hits) {
-                reachable = Mathf.Min(reachable, Mathf.Max(0f, hit.distance - backoff));
+            for (int i = 0; i < hitCount; i++) {
+                reachable = Mathf.Min(reachable, Mathf.Max(0f, this.castHits[i].distance - backoff));
             }
             return reachable;
         }
@@ -554,7 +715,7 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
         /// </summary>
         private bool IsPoseInGroundAt(
             Part part,
-            Collider[] colliders,
+            List<Collider> colliders,
             Vector3 position,
             Quaternion rotation
         ) {
@@ -573,7 +734,7 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
         /// </summary>
         private bool IsInGroundAt(
             Part part,
-            Collider[] colliders,
+            List<Collider> colliders,
             Vector3 fromPosition,
             Vector3 direction,
             float travel
@@ -597,7 +758,7 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
         /// </summary>
         private Vector3 GetReachablePosition(
             Part part,
-            Collider[] colliders,
+            List<Collider> colliders,
             Vector3 fromPosition,
             Vector3 toPosition
         ) {
@@ -676,17 +837,22 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
             // GroundOffset (GetGroundOffsetVector), so free is the furthest pose whose colliders stand
             // that much clear of the ground. Subtracting it once more would apply it twice, and along
             // the move instead of along the local vertical it was measured on.
-            LOGGER.LogDebug($"Stopping {free:F3} m away, {GroundOffset:F3} m clear of the ground");
+            if (LOGGER.IsDebugEnabled) {
+                LOGGER.LogDebug($"Stopping {free:F3} m away, {GroundOffset:F3} m clear of the ground");
+            }
             return fromPosition + direction * free;
         }
 
         /// <summary>
-        /// The colliders of <paramref name="part"/> that take part in collisions, the only ones this fix
-        /// has any reason to keep out of the ground.
+        /// Fills <see cref="solidColliders"/> with the colliders of <paramref name="part"/> that take part
+        /// in collisions, the only ones this fix has any reason to keep out of the ground.
         /// </summary>
-        private static Collider[] GetSolidColliders(Part part) {
-            List<Collider> solidColliders = new List<Collider>();
-            foreach (Collider collider in part.GetComponentsInChildren<Collider>()) {
+        private void CollectSolidColliders(Part part) {
+            // The List overload writes into a buffer we own, where GetComponentsInChildren<T>() hands back
+            // a new array at every event of a drag.
+            part.GetComponentsInChildren(this.partColliders);
+            this.solidColliders.Clear();
+            foreach (Collider collider in this.partColliders) {
                 // A trigger has no solidity: it is a volume a module watches for something entering it, and
                 // it is usually far larger than the part. ModuleRobotArmScanner hangs a 4 m sphere off the
                 // arm that way, which would stop the part 4 m above the ground.
@@ -695,15 +861,14 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
                 if (!collider.enabled || collider.isTrigger) {
                     continue;
                 }
-                solidColliders.Add(collider);
+                this.solidColliders.Add(collider);
             }
-            return solidColliders.ToArray();
         }
 
         /// <summary>
         /// Whether <paramref name="part"/> is in the ground in the pose it currently holds.
         /// </summary>
-        private bool IsPoseInGround(Part part, Collider[] colliders) {
+        private bool IsPoseInGround(Part part, List<Collider> colliders) {
             foreach (Collider collider in colliders) {
                 if (IsCollidingWithGround(collider)) {
                     return true;
@@ -749,9 +914,11 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
             }
 
             if( part != this.previousPart ) {
-                LOGGER.LogDebug(
-                    $"Now following {part.partInfo.name}, from {part.transform.position.ToString("F3")}"
-                );
+                if( LOGGER.IsDebugEnabled ) {
+                    LOGGER.LogDebug(
+                        $"Now following {part.partInfo.name}, from {part.transform.position.ToString("F3")}"
+                    );
+                }
 
                 // Seems to stabilize the parts when changing.
                 if( previousPart != null ) {
@@ -764,7 +931,8 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
                 this.previousRotation = part.transform.rotation;
             }
 
-            Collider[] colliders = GetSolidColliders(part);
+            CollectSolidColliders(part);
+            List<Collider> colliders = this.solidColliders;
             Vector3 targetPosition = part.transform.position;
             Quaternion targetRotation = part.transform.rotation;
 
@@ -772,10 +940,12 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
             // in a single query whatever the distance, so crossing the ground stops being something the test
             // has to catch in time and becomes something the part cannot do: however long the player keeps
             // dragging, the part is only ever put down on the near side of what stands in its way.
-            LOGGER.LogDebug(
-                $"[{eventType}] {part.partInfo.name}: {Vector3.Distance(this.previousPosition, targetPosition):F3} m" +
-                $" and {Quaternion.Angle(this.previousRotation, targetRotation):F1} deg asked for"
-            );
+            if( LOGGER.IsDebugEnabled ) {
+                LOGGER.LogDebug(
+                    $"[{eventType}] {part.partInfo.name}: {Vector3.Distance(this.previousPosition, targetPosition):F3} m" +
+                    $" and {Quaternion.Angle(this.previousRotation, targetRotation):F1} deg asked for"
+                );
+            }
 
             // Both stages below measure a move away from a pose they take for clear, and a part can start
             // from inside the ground all the same: attached on a node, terrain detail changed under it,
@@ -787,7 +957,7 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
             // pose it came from. So the move is granted whole and the part stays draggable; whatever pose
             // it is dropped on becomes the next start, and truncation resumes as soon as that one is clear.
             if( IsPoseInGroundAt(part, colliders, this.previousPosition, this.previousRotation) ) {
-                LOGGER.LogDebug($"Starting pose is already in the ground, the move is granted whole");
+                LOGGER.LogDebug("Starting pose is already in the ground, the move is granted whole");
                 this.previousPosition = targetPosition;
                 this.previousRotation = targetRotation;
                 part.transform.position = targetPosition;
@@ -828,7 +998,7 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
                 }
             }
 
-            if (inGround) {
+            if (inGround && LOGGER.IsDebugEnabled) {
                 LOGGER.LogDebug($"Rotation walked over {steps} pose(s) hits the ground, keeping the previous pose");
             }
 

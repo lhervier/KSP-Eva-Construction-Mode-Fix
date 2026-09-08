@@ -10,10 +10,10 @@ bas — elles ont coûté une séance entière (2026-09-03).
 Un déplacement n'est plus **refusé**, il est **tronqué** : la pièce avance jusqu'au contact réel,
 moins la garde au sol. Trois étages, du moins cher au plus précis.
 
-1. **Détecter** — `GetCastDistance` balaie la forme du collider (`Physics.BoxCastAll` /
-   `SphereCastAll` / `CapsuleCastAll`) le long du déplacement. Il ne répond qu'à « y a-t-il quelque
-   chose sur le trajet ». Rien → le déplacement est accordé entier, en une requête : c'est le cas
-   courant et il ne coûte rien.
+1. **Détecter** — `GetCastDistance` balaie la forme du collider (`Physics.BoxCastNonAlloc` /
+   `SphereCastNonAlloc` / `CapsuleCastNonAlloc`) le long du déplacement. Il ne répond qu'à « y a-t-il
+   quelque chose sur le trajet ». Rien → le déplacement est accordé entier, en une requête : c'est le
+   cas courant et il ne coûte rien.
 2. **Encadrer** — sondages répartis sur une fenêtre, en testant réellement chaque pose
    (`IsPoseInGround`, donc `ComputePenetration`).
 3. **Affiner** — dichotomie (`BISECTION_STEPS = 12`) entre la dernière pose dégagée et la première
@@ -67,6 +67,39 @@ plus un trou.
   peau du terrain n'est vue enterrée par personne, ni par ce test ni par la détection. Il couvre le
   cas qui figeait la pièce, pas celui qu'on ne sait pas détecter.
 
+## Le chemin chaud n'alloue plus (2026-09-08)
+
+`PartOffsetting` tire à **chaque frame** du glissement, et un seul événement enchaîne jusqu'à une
+soixantaine de poses × le nombre de colliders de la pièce. Chaque pose faisait auparavant un
+`Physics.Overlap*` (tableau neuf), un `new List<Collider>` et un `.ToArray()` ; chaque cast un
+`*CastAll` (tableau neuf) ; chaque événement un `GetComponentsInChildren<Collider>()`. Tout cela est
+passé sur des tampons gardés en champ (`overlapCandidates`, `castHits`, `solidColliders`,
+`partColliders`, `penetratingColliders`) et les variantes `NonAlloc` / `GetComponentsInChildren(List)`.
+
+⚠️ **Un tampon plein est une réponse tronquée.** `Physics.*NonAlloc` remplit sans dire ce qu'il a
+laissé de côté, et l'ordre n'est pas garanti : un candidat perdu, c'est une pénétration jamais testée
+(pièce déclarée dégagée alors qu'elle est dans le sol) ; un hit perdu, c'est peut-être le plus proche,
+c'est-à-dire la seule chose que le cast avait à dire. D'où la règle, dans `OverlapBox`/`OverlapSphere`/
+`OverlapCapsule` et `BoxCastHits`/`SphereCastHits`/`CapsuleCastHits` : `count == buffer.Length` →
+**doubler le tampon et relancer la requête**, jamais accepter le résultat. Le tampon est conservé, la
+taille se fixe donc d'elle-même sur les premières poses.
+
+⚠️ **Ne pas remplacer les casts `NonAlloc` par les surcharges à hit unique** (`Physics.BoxCast(out
+RaycastHit)`). Elles ne rendent que le hit le plus proche, ce qui donnerait le même minimum — *si*
+elles rapportaient le même ensemble de hits. Or c'est précisément là que la documentation Unity et le
+comportement observé divergent, sur le cas qui compte ici : le chevauchement au démarrage du balayage
+(cf. l'invariant « un cast part toujours en arrière de la pièce »). Un hit à distance nulle escamoté
+donnerait « rien sur le trajet », donc le déplacement accordé entier, dans le sol.
+
+`HasPenetratingCollider` s'arrête par ailleurs **au premier collider pénétré** : la question posée est
+un oui/non. L'ensemble complet n'est parcouru que si le log Debug est actif — c'est lui qui le
+demande, c'est lui qui le paie.
+
+Côté logs, `ModLogger.Log` teste le niveau **à l'intérieur**, donc une chaîne interpolée passée à
+`LogDebug` est construite même en Info. `ModLogger` (KSP-Shared) expose depuis le 2026-09-08
+`IsEnabled(level)` et `IsDebugEnabled` / `IsTraceEnabled` / … : **tout log interpolé du chemin chaud
+se garde derrière `if (LOGGER.IsDebugEnabled)`**.
+
 ## Pièges de géométrie déjà payés
 
 Quatre corrections de géométrie, toutes **silencieuses** : aucune n'a jamais produit d'erreur ni de
@@ -75,22 +108,22 @@ Aucune ne se déduit de la documentation Unity ; les redécouvrir coûte une sé
 
 ### Deux variables à ne jamais refusionner
 
-Corrigé le 2026-09-02. `GetBoxColliders`, `GetCapsuleColliders`, `GetSphereColliders` et
-`GetMeshColliders` séparent :
+Corrigé le 2026-09-02. `OverlapBoxCollider`, `OverlapCapsuleCollider`, `OverlapSphereCollider` et
+`OverlapMeshCollider` séparent :
 
 - `volumeWorldCenter` = `transform.TransformPoint(collider.center)` + décalage sol → pour la phase
   large (`Physics.Overlap*`) ;
-- `transformWorldPosition` = `transform.position` + décalage sol → pour `GetPenetratingColliders`,
+- `transformWorldPosition` = `transform.position` + décalage sol → pour `HasPenetratingCollider`,
   donc `Physics.ComputePenetration`.
 
 Le décalage sol (`GetGroundOffsetVector`) s'applique **aux deux**. Avant le correctif, une seule
 variable `center` servait aux deux rôles, et la phase large cherchait au mauvais endroit pour tout
 collider décalé de l'origine de son transform : la pièce se posait dans le sol sans la moindre
-erreur. `GetMeshColliders` avait déjà le bon schéma et sert de modèle.
+erreur. `OverlapMeshCollider` avait déjà le bon schéma et sert de modèle.
 
 ### `Collider.bounds` est déjà en espace monde
 
-Corrigé le 2026-09-03. `GetMeshColliders` bâtit son volume de recherche sur `meshCollider.bounds` :
+Corrigé le 2026-09-03. `OverlapMeshCollider` bâtit son volume de recherche sur `meshCollider.bounds` :
 ses extents sont **déjà** en unités monde (pas de `lossyScale` à appliquer) et ses axes sont **déjà**
 ceux du monde, d'où `Quaternion.identity` en rotation. Remultiplier par `lossyScale` gonflait la
 boîte (×20 sur certaines pièces, ×0,5 sur d'autres) et lui appliquer `transform.rotation` permutait
@@ -113,7 +146,7 @@ au-dessus du sol**.
 
 Depuis, les deux côtés appliquent la même règle, et le cas particulier `rangeTrigger` a disparu :
 
-- côté mobile, `GetSolidColliders(part)` écarte `!enabled || isTrigger` à la construction de la liste ;
+- côté mobile, `CollectSolidColliders(part)` écarte `!enabled || isTrigger` à la construction de la liste ;
 - côté touché, les quatre `Physics.Overlap*` passent `QueryTriggerInteraction.Ignore` — les casts le
   faisaient déjà, d'où un filtre `rangeTrigger` qui y était de toute façon mort.
 
