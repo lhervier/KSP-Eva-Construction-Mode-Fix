@@ -39,13 +39,6 @@ namespace com.github.lhervier.ksp.evacmgroundmod.settings
         /// </summary>
         public const bool KeepAnchoredBaseGroundPositionDefault = true;
 
-        /// <summary>
-        /// Default for <see cref="FixPqsQuadPrecision"/>: off. Unlike the other two, this one patches
-        /// stock terrain generation for the whole game rather than adjusting what this mod does, so it
-        /// stays something the player turns on knowingly until it has been flown enough to trust.
-        /// </summary>
-        public const bool FixPqsQuadPrecisionDefault = false;
-
         private readonly string _path;
 
         /// <summary>How verbose the mod's logging is.</summary>
@@ -63,12 +56,6 @@ namespace com.github.lhervier.ksp.evacmgroundmod.settings
         /// </summary>
         public bool KeepAnchoredBaseGroundPosition { get; set; }
 
-        /// <summary>
-        /// Whether the PQS quad precision fix is applied: the terrain's collision mesh is then built
-        /// where the analytic terrain says, instead of drifting by up to 20 cm at every load.
-        /// </summary>
-        public bool FixPqsQuadPrecision { get; set; }
-
         public EvaCMGroundSettings()
         {
             string dll = Assembly.GetExecutingAssembly().Location;
@@ -82,7 +69,6 @@ namespace com.github.lhervier.ksp.evacmgroundmod.settings
             LogLevel = LogLevel.Info;
             GroundOffset = GroundOffsetDefault;
             KeepAnchoredBaseGroundPosition = KeepAnchoredBaseGroundPositionDefault;
-            FixPqsQuadPrecision = FixPqsQuadPrecisionDefault;
         }
 
         /// <summary>Reads the settings file, falling back on the defaults when it is missing or unreadable.</summary>
@@ -127,13 +113,8 @@ namespace com.github.lhervier.ksp.evacmgroundmod.settings
             general.TryGetValue("keepAnchoredBaseGroundPosition", ref keepAnchoredBase);
             KeepAnchoredBaseGroundPosition = keepAnchoredBase;
 
-            bool fixPqs = FixPqsQuadPrecision;
-            general.TryGetValue("fixPqsQuadPrecision", ref fixPqs);
-            FixPqsQuadPrecision = fixPqs;
-
             LOGGER.LogInfo($"Settings loaded from {_path} (logLevel={LogLevel}, groundOffset={GroundOffset}"
-                + $", keepAnchoredBaseGroundPosition={KeepAnchoredBaseGroundPosition}"
-                + $", fixPqsQuadPrecision={FixPqsQuadPrecision})");
+                + $", keepAnchoredBaseGroundPosition={KeepAnchoredBaseGroundPosition})");
         }
 
         /// <summary>Writes the settings file, creating PluginData/ on first save.</summary>
@@ -146,7 +127,6 @@ namespace com.github.lhervier.ksp.evacmgroundmod.settings
                 general.AddValue("logLevel", LogLevel.ToString());
                 general.AddValue("groundOffset", GroundOffset);
                 general.AddValue("keepAnchoredBaseGroundPosition", KeepAnchoredBaseGroundPosition);
-                general.AddValue("fixPqsQuadPrecision", FixPqsQuadPrecision);
 
                 Directory.CreateDirectory(Path.GetDirectoryName(_path));
                 root.Save(_path);
