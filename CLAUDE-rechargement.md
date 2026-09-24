@@ -11,7 +11,7 @@ c'est un défaut de KSP, reproductible sans toucher au sol.
 terrain n'est pas reproductible d'un chargement à l'autre** (jusqu'à ±10 cm, bug de KSP nu). Tout ce
 que décrit ce fichier reste exact, mais ce n'est que la moitié de l'histoire : c'est parce que le sol
 change de place que la passe de repositionnement ci-dessous donnait un résultat différent à chaque
-fois. Voir [`../CLAUDE-collider-pqs.md`](../CLAUDE-collider-pqs.md), et la section « Ce que devient le
+fois. Voir [`claude-notes/collider-pqs/`](../claude-notes/collider-pqs/sommaire.md), et la section « Ce que devient le
 keeper » en bas de ce fichier.
 
 ⚠️ La cause écrite ici jusqu'au 2026-09-08 (masse gonflée → centre de masse → altitude enregistrée)

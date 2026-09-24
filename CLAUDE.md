@@ -2,7 +2,7 @@
 
 Ce fichier ne contient que ce qui est **propre à ce mod**. Tout ce qui vaut pour le développement de
 mods KSP en général est dans le `CLAUDE.md` du dossier parent (`kspmod\`) et ses fichiers de contexte
-— ici, presque tout vient de [`../CLAUDE-terrain-physique.md`](../CLAUDE-terrain-physique.md), dont ce
+— ici, presque tout vient de [`claude-notes/terrain-physique.md`](../claude-notes/terrain-physique.md) et [`vaisseau-pose.md`](../claude-notes/vaisseau-pose.md), dont ce
 mod dépend entièrement :
 
 - **le sol et les bâtiments sont des peaux sans épaisseur**, donc `ComputePenetration` ne détecte que
@@ -13,7 +13,7 @@ mod dépend entièrement :
   pose accordée grandit tant que le joueur maintient le glissement ;
 - **le collider d'une pièce ne couvre pas forcément sa forme** ;
 - **lire un `.mu` depuis un script** pour vérifier tout ça sans lancer le jeu
-  ([`../CLAUDE-modelisation-mu.md`](../CLAUDE-modelisation-mu.md)).
+  ([`claude-notes/modelisation-mu.md`](../claude-notes/modelisation-mu.md)).
 
 ## Fichiers de contexte — à ouvrir au besoin, pas par défaut
 
@@ -91,7 +91,7 @@ chargement.
 **Il vit désormais dans son propre mod, `../KSP-TerrainPrecisionFix`**, extrait pour être proposé à
 KSPCommunityFixes. Ne pas le réintroduire ici : un réglage `fixPqsQuadPrecision` resté dans un
 `settings.cfg` est simplement ignoré. L'enquête est dans
-[`../CLAUDE-collider-pqs.md`](../CLAUDE-collider-pqs.md).
+[`claude-notes/collider-pqs/`](../claude-notes/collider-pqs/sommaire.md).
 
 [`Src/anchor/GroundLevelProbe.cs`](Src/anchor/GroundLevelProbe.cs) est resté ici. C'est l'instrument de
 mesure qui allait avec : silencieux sauf au niveau de log Trace ou avec la variable d'environnement
