@@ -2,7 +2,6 @@ using System;
 using UnityEngine;
 using TMPro;
 using com.github.lhervier.ksp.shared;
-using com.github.lhervier.ksp.shared.ugui.checkbox;
 using com.github.lhervier.ksp.shared.ugui.combo;
 using com.github.lhervier.ksp.shared.ugui.slider;
 
@@ -28,16 +27,13 @@ namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
         private ComboController _logLevelCombo;
         private SliderController _groundOffsetSlider;
         private TextMeshProUGUI _groundOffsetValue;
-        private CheckboxController _keepAnchoredBaseCheckbox;
         public ContentController WithControls(ComboController logLevelCombo,
                                               SliderController groundOffsetSlider,
-                                              TextMeshProUGUI groundOffsetValue,
-                                              CheckboxController keepAnchoredBaseCheckbox)
+                                              TextMeshProUGUI groundOffsetValue)
         {
             this._logLevelCombo = logLevelCombo;
             this._groundOffsetSlider = groundOffsetSlider;
             this._groundOffsetValue = groundOffsetValue;
-            this._keepAnchoredBaseCheckbox = keepAnchoredBaseCheckbox;
             return this;
         }
 
@@ -53,17 +49,12 @@ namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
             {
                 _groundOffsetSlider.OnValueChanged.Add(OnGroundOffsetDragged);
             }
-            if (_keepAnchoredBaseCheckbox != null)
-            {
-                _keepAnchoredBaseCheckbox.OnToggled.Add(OnKeepAnchoredBaseToggled);
-            }
             // The controls do not update themselves on their own event, on purpose: what they display
             // comes back from the setting, so a value the view model refuses is never shown as chosen.
             if (_viewModel != null)
             {
                 _viewModel.OnLogLevelChanged.Add(OnLogLevelChanged);
                 _viewModel.OnGroundOffsetChanged.Add(OnGroundOffsetChanged);
-                _viewModel.OnKeepAnchoredBaseGroundPositionChanged.Add(OnKeepAnchoredBaseChanged);
             }
 
             // First sync of the freshly built window: OnEnable already ran (Unity fires it from
@@ -82,15 +73,10 @@ namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
             {
                 _groundOffsetSlider.OnValueChanged.Remove(OnGroundOffsetDragged);
             }
-            if (_keepAnchoredBaseCheckbox != null)
-            {
-                _keepAnchoredBaseCheckbox.OnToggled.Remove(OnKeepAnchoredBaseToggled);
-            }
             if (_viewModel != null)
             {
                 _viewModel.OnLogLevelChanged.Remove(OnLogLevelChanged);
                 _viewModel.OnGroundOffsetChanged.Remove(OnGroundOffsetChanged);
-                _viewModel.OnKeepAnchoredBaseGroundPositionChanged.Remove(OnKeepAnchoredBaseChanged);
             }
         }
 
@@ -112,10 +98,6 @@ namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
             if (_groundOffsetSlider != null)
             {
                 _groundOffsetSlider.SetValue(_viewModel.GroundOffset);
-            }
-            if (_keepAnchoredBaseCheckbox != null)
-            {
-                _keepAnchoredBaseCheckbox.SetChecked(_viewModel.KeepAnchoredBaseGroundPosition);
             }
             UpdateGroundOffsetValue();
         }
@@ -141,11 +123,6 @@ namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
             UpdateGroundOffsetValue();
         }
 
-        private void OnKeepAnchoredBaseToggled(bool isChecked)
-        {
-            _viewModel.KeepAnchoredBaseGroundPosition = isChecked;
-        }
-
         // ==========================================================================
         // View model -> controls
         // ==========================================================================
@@ -162,14 +139,6 @@ namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
         private void OnGroundOffsetChanged()
         {
             UpdateGroundOffsetValue();
-        }
-
-        private void OnKeepAnchoredBaseChanged()
-        {
-            if (_keepAnchoredBaseCheckbox != null)
-            {
-                _keepAnchoredBaseCheckbox.SetChecked(_viewModel.KeepAnchoredBaseGroundPosition);
-            }
         }
 
         private void UpdateGroundOffsetValue()

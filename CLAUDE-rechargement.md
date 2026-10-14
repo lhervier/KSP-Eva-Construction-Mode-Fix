@@ -14,6 +14,15 @@ change de place que la passe de repositionnement ci-dessous donnait un résultat
 fois. Voir [`claude-notes/collider-pqs/`](../claude-notes/collider-pqs/sommaire.md), et la section « Ce que devient le
 keeper » en bas de ce fichier.
 
+⚠️ **Depuis le 2026-10-14, ce mod ne corrige plus rien au chargement.** Le keeper décrit dans « L'ancien
+correctif du mod » a été retiré (avec la sonde `GroundLevelProbe`) : l'ancre est désormais l'affaire de
+`../KSP-TerrainPrecisionFix` (collider de l'ancre descendu à l'origine, clamp de `Vessel.Load` sauté,
+rivetage figé dès le dépaquetage), que le README de ce mod recommande. Les deux faisaient double emploi, et le
+keeper contredisait TPF sur un point : en sautant la passe `CheckGroundCollision`, il laissait enterrée de
+2 cm une ancre posée en stock, que TPF fait remonter une fois à fleur. Détail :
+[`claude-notes/mods/TerrainPrecisionFix-ancre.md`](../claude-notes/mods/TerrainPrecisionFix-ancre.md).
+Le code du keeper reste dans l'historique git. Le reste de ce fichier (le mécanisme stock) est toujours vrai.
+
 ⚠️ La cause écrite ici jusqu'au 2026-09-08 (masse gonflée → centre de masse → altitude enregistrée)
 était **fausse**. Elle est réfutée plus bas, code et mesures à l'appui. Le mécanisme réel n'a rien à
 voir avec la masse.
@@ -110,12 +119,15 @@ posé »**, et c'est ça — pas la masse, pas la géométrie — qui armait le 
 manipulation (ou simplement le fait de charger la scène et de laisser le vaisseau vivre quelques
 secondes) remet `PQSMin/PQSMax`, `hgt` et `nrm` d'aplomb.
 
-## Le correctif du mod
+## L'ancien correctif du mod
 
-Depuis le 2026-09-08, [`Src/anchor/AnchoredBaseGroundKeeper.cs`](Src/anchor/AnchoredBaseGroundKeeper.cs)
-écrit les niveaux PQS attendus dans le `ProtoVessel`, sur `GameEvents.onProtoVesselLoad`, ce qui
-remet le vaisseau sur le chemin « rien à faire » de `GoOffRails`. Activé par défaut ; les quatre
-choix de conception sont résumés dans le [CLAUDE.md](CLAUDE.md) du mod.
+Retiré le 2026-10-14, remplacé par TerrainPrecisionFix (cf. l'avertissement en tête de ce fichier).
+Du 2026-09-08 au 2026-10-14, `Src/anchor/AnchoredBaseGroundKeeper.cs` (dans l'historique git)
+écrivait les niveaux PQS attendus dans le `ProtoVessel`, sur `GameEvents.onProtoVesselLoad`, ce qui
+remettait le vaisseau sur le chemin « rien à faire » de `GoOffRails`. Activé par défaut ; ses quatre
+choix de conception : `onProtoVesselLoad` et pas `onVesselLoaded` (un vaisseau ancré se dépaquette tout
+de suite), le tir du constructeur `ProtoVessel(ConfigNode, Game)` ignoré, `vesselSpawning` laissé à KSP,
+et seulement des niveaux à `0/0`.
 
 **Validé en jeu le 2026-09-08**, et le log donne un A/B propre sur le même vaisseau :
 
@@ -142,6 +154,9 @@ jamais recalé, **même option redésactivée**. Une base ne demande qu'un seul 
 être réparée définitivement.
 
 ## Ce que devient le keeper une fois le terrain corrigé (2026-09-09)
+
+Écrit quand le keeper existait encore. Ce que ce chapitre établit sur le collider de l'ancre (2,08 cm
+au-dessus de l'origine) est ce que TerrainPrecisionFix corrige aujourd'hui, en descendant ce collider.
 
 Avec le correctif de précision PQS actif, le sol ne bouge plus (dispersion : 0,05 mm au lieu de
 143 mm). La passe de repositionnement de KSP devient alors **parfaitement déterministe** — mesuré sur
@@ -181,6 +196,8 @@ rechargement. Le keeper la maintiendrait à son altitude alors que le sol a boug
 correctif PQS n'y change rien : il corrige la précision du maillage, pas son niveau de détail.
 
 ## Le contournement, sans le mod
+
+En stock, sans TerrainPrecisionFix.
 
 **Après avoir posé une pièce, laisser la scène vivre une dizaine de secondes, sauvegarder, puis
 recharger une fois et re-sauvegarder.** Le premier rechargement encaisse le recalage et remet

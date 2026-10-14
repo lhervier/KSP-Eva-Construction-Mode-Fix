@@ -3,7 +3,6 @@ using UnityEngine.UI;
 using TMPro;
 using com.github.lhervier.ksp.shared;
 using com.github.lhervier.ksp.shared.ugui;
-using com.github.lhervier.ksp.shared.ugui.checkbox;
 using com.github.lhervier.ksp.shared.ugui.combo;
 using com.github.lhervier.ksp.shared.ugui.slider;
 using com.github.lhervier.ksp.evacmgroundmod.settings;
@@ -13,7 +12,7 @@ namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
 {
     /// <summary>
     /// Popup content (everything below the shared title bar): the log level combo, then the ground offset
-    /// field and the sentence that explains it, then the anchored base checkbox and its own sentence.
+    /// field and the sentence that explains it.
     /// Mounted and stretched to fill the content host by the PopupBuilder, so it only fills what it is
     /// given.
     /// </summary>
@@ -57,19 +56,10 @@ namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
 
             BuildHint(rootGo.transform, "settingsGroundOffsetHint", EvaCMGroundPalette.HintHeight);
 
-            // Greedy: the whole row toggles, the way a settings line is expected to behave.
-            CheckboxController keepAnchoredBaseCheckbox = new CheckboxBuilder()
-                .WithLabel(ModLocalization.GetString("settingsKeepAnchoredBase"))
-                .WithGreedyState(true)
-                .Build();
-            keepAnchoredBaseCheckbox.transform.SetParent(rootGo.transform, false);
-
-            BuildHint(rootGo.transform, "settingsKeepAnchoredBaseHint", EvaCMGroundPalette.AnchorHintHeight);
-
             return rootGo
                 .AddComponent<ContentController>()
                 .WithViewModel(_viewModel)
-                .WithControls(logLevelCombo, groundOffsetSlider, groundOffsetValue, keepAnchoredBaseCheckbox);
+                .WithControls(logLevelCombo, groundOffsetSlider, groundOffsetValue);
         }
 
         // ----------------------------------------------------------------

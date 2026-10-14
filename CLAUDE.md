@@ -25,7 +25,7 @@ Le détail des enquêtes est sorti d'ici pour ne pas alourdir la lecture courant
   `lossyScale`), les pièces de test et la méthode de lecture des logs. **À lire avant de toucher à
   `GetReachablePosition`, `GetCastDistance`, `IsPoseInGround` ou au balayage.**
 - **[CLAUDE-rechargement.md](CLAUDE-rechargement.md)** — « la base monte quand je recharge » :
-  **ce n'est pas le mod**, c'est `Vessel.CheckGroundCollision` qui repose le vaisseau « point le plus
+  **ce n'est pas le mod** (qui ne corrige plus rien au chargement : c'est le rôle de TPF), c'est `Vessel.CheckGroundCollision` qui repose le vaisseau « point le plus
   bas des colliders sur le terrain » à chaque chargement, parce que `PQSMin`/`PQSMax` de la
   sauvegarde ne correspondent pas au `pqsController` courant — et parce que la zone morte de 10 cm
   qui absorberait la correction est désactivée quand la racine porte un `ModuleGroundPart`.
@@ -45,58 +45,33 @@ pièce à sa dernière pose valide. La troncature remplace ce fonctionnement, pa
 la pièce n'importe où au-dessus du sol, et que l'erreur s'accumule sur une base longue — les
 contraintes se paient au démarrage de la physique.
 
-## Le second correctif, sans rapport avec le premier
+## TerrainPrecisionFix est recommandé, pas exigé
 
-Depuis le 2026-09-08, le mod embarque aussi
-[`Src/anchor/AnchoredBaseGroundKeeper.cs`](Src/anchor/AnchoredBaseGroundKeeper.cs), qui empêche KSP
-de **reposer une base ancrée sur le terrain à chaque chargement** — le bug documenté dans
-[CLAUDE-rechargement.md](CLAUDE-rechargement.md). Il écrit `PQSminLevel`/`PQSmaxLevel` dans le
-`ProtoVessel`, sur `GameEvents.onProtoVesselLoad`, ce qui remet le vaisseau sur le chemin « rien à
-faire » de `Vessel.GoOffRails`. **Activé par défaut** depuis le 2026-09-08 — il l'était à
-`false` le temps de l'éprouver en jeu — via le réglage `keepAnchoredBaseGroundPosition`.
+Depuis le 2026-10-14, ce mod ne fait plus qu'une chose : **empêcher une pièce d'être déplacée dans le
+sol**. Il marche seul, et le README (chapitre *Works best with TerrainPrecisionFix*) conseille `../KSP-TerrainPrecisionFix` : sans lui, la
+pièce est posée contre un sol qui ne sera pas à la même hauteur au chargement suivant, et une base
+ancrée remonte. **Aucune vérification de la présence de TPF, aucune erreur dans le log** (décision de
+Lionel) : il espère voir TPF intégré un jour à KSPCommunityFixes, et une détection par nom d'assembly
+deviendrait alors fausse.
 
-⚠️ **Sa justification a changé le 2026-09-09**, quand la cause profonde a été trouvée (le maillage de
-collision du terrain, voir plus bas). Il ne combat plus une dérive erratique : le sol ne bouge plus, et
-la passe de KSP est devenue déterministe (mesuré sur la Mun : `up 0.042m`, la même valeur à quatre
-rechargements). Ce qu'il empêche désormais, c'est que cette passe **défasse la pose issue du
-rivetage** — `CheckGroundCollision` pose le point le plus bas des *colliders* sur le terrain, or celui
-de l'ancre s'arrête **2,08 cm au-dessus de l'origine de la pièce** alors que son modèle descend
-jusqu'à l'origine (mesuré dans le `.mu`). D'où 4,2 cm de remontée à chaque chargement, et un socle qui
-flotte visiblement. Détail et cas de bord dans [CLAUDE-rechargement.md](CLAUDE-rechargement.md).
+Deux correctifs ont vécu ici et vivent désormais dans TPF. **Ne pas les réintroduire** :
 
-Il n'a **aucun lien** avec la troncature de placement, et c'est délibéré : son propre addon, son
-propre réglage, aucun état partagé. Il mériterait un mod à part et pourra y être déplacé tel quel.
-Quatre choix à ne pas défaire sans relire le fichier de contexte :
+- **Le terrain** (2026-09-09 au 2026-09-11, `Src/terrain/PqsQuadPrecisionFix.cs`, réglage
+  `fixPqsQuadPrecision`) : le maillage de collision d'un quad PQS posé à une altitude différente à chaque
+  chargement, en `float` sur des vecteurs de 600 km. Extrait pour être proposé à KSPCommunityFixes.
+  Enquête : [`claude-notes/collider-pqs/`](../claude-notes/collider-pqs/sommaire.md).
+- **L'ancre** (2026-09-08 au 2026-10-14, `Src/anchor/AnchoredBaseGroundKeeper.cs`, réglage
+  `keepAnchoredBaseGroundPosition`, case à cocher de la fenêtre) : sautait la passe
+  `CheckGroundCollision` d'une base ancrée en écrivant ses niveaux PQS. TPF corrige la même chose
+  autrement et plus complètement (collider de l'ancre, clamp de `Vessel.Load`, rivetage) ; le keeper le
+  contredisait sur l'ancre posée en stock, qu'il laissait enterrée de 2 cm. Pourquoi et comment :
+  [CLAUDE-rechargement.md](CLAUDE-rechargement.md) et
+  [`claude-notes/mods/TerrainPrecisionFix-ancre.md`](../claude-notes/mods/TerrainPrecisionFix-ancre.md).
 
-- **`onProtoVesselLoad`, pas `onVesselLoaded`** : un vaisseau ancré court-circuite les 75 frames de
-  *physics hold*, donc il se dépaquette immédiatement. Le hook doit être antérieur à l'existence du
-  `Vessel`, sinon il y a une course.
-- **Le tir depuis le constructeur `ProtoVessel(ConfigNode, Game)` est ignoré** (`action.to != null`) :
-  à ce moment rien n'est encore parsé.
-- **On ne touche pas à `vesselSpawning`** : c'est lui qui laisse une ancre qu'on vient de lâcher
-  recevoir son assise initiale.
-- **Variante conservatrice assumée** : on ne corrige que des niveaux à `0/0` (jamais initialisés, cas
-  de la pièce lâchée). Des niveaux simplement périmés veulent dire que le détail du terrain a
-  vraiment changé, et là la passe de KSP a une raison d'être.
-
-## Le correctif du terrain n'est plus ici
-
-Du 2026-09-09 au 2026-09-11, ce mod embarquait un troisième correctif, désactivé par défaut
-(`Src/terrain/PqsQuadPrecisionFix.cs`, réglage `fixPqsQuadPrecision`) : deux patches Harmony contre un
-défaut de **KSP nu**, le maillage de collision d'un quad PQS posé à une altitude différente à chaque
-chargement, parce que KSP le place en `float` sur des vecteurs de 600 km. C'est **la** cause de l'ancre
-tantôt plaquée tantôt enterrée, du tremblement, et des grosses bases qui explosent au premier
-chargement.
-
-**Il vit désormais dans son propre mod, `../KSP-TerrainPrecisionFix`**, extrait pour être proposé à
-KSPCommunityFixes. Ne pas le réintroduire ici : un réglage `fixPqsQuadPrecision` resté dans un
-`settings.cfg` est simplement ignoré. L'enquête est dans
-[`claude-notes/collider-pqs/`](../claude-notes/collider-pqs/sommaire.md).
-
-[`Src/anchor/GroundLevelProbe.cs`](Src/anchor/GroundLevelProbe.cs) est resté ici. C'est l'instrument de
-mesure qui allait avec : silencieux sauf au niveau de log Trace ou avec la variable d'environnement
-`EVACM_GROUND_PROBE=1`, il compare à chaque chargement la hauteur analytique du terrain et celle du
-maillage de collision, en trois points d'un même quad.
+Retirée le même jour : `Src/anchor/GroundLevelProbe.cs`, la sonde de mesure du terrain (niveau Trace ou
+`EVACM_GROUND_PROBE=1`), remplacée par Diag TerrainHeight et les niveaux Debug/Trace de TPF. Tout est
+dans l'historique git. Un `settings.cfg` qui porte encore `keepAnchoredBaseGroundPosition` ou
+`fixPqsQuadPrecision` est lu sans erreur ; la clé saute au prochain enregistrement.
 
 ## Deux variables à ne jamais refusionner
 

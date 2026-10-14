@@ -1,19 +1,12 @@
 # EVA Construction Mode Ground Fix
 
-A Kerbal Space Program mod that fixes two independent bugs affecting bases built in EVA Construction
-Mode:
+A Kerbal Space Program mod that stops an engineer in EVA Construction Mode from moving a part into
+the ground. Nothing in the game refuses it, and the damage only shows up on the next reload, when KSP
+tries to put the vessel back above the surface.
 
-1. **Parts can be placed underground.** Nothing in the game refuses it, and the damage only shows up
-   on the next reload, when KSP tries to put the vessel back above the surface.
-2. **A base built on a ground anchor rises out of the ground at every reload.** KSP puts it back down
-   on the terrain each time it loads, which pulls the anchor's spikes out and welds them a little
-   higher. This one has nothing to do with where the player put the parts.
-
-Both are active as soon as the mod is installed, and each can be turned off on its own.
-
----
-
-# Fix 1 — Parts placed underground
+It works on its own, and is best paired with
+[TerrainPrecisionFix](https://github.com/lhervier/KSP-TerrainPrecisionFix): see
+[Works best with TerrainPrecisionFix](#works-best-with-terrainprecisionfix).
 
 ## The problem
 
@@ -25,9 +18,9 @@ Here is the whole sequence, on Minmus.
 
 ### 1. An engineer deploys a ground anchor
 
-A Clamp-O-Tron is dropped on the surface, and becomes the root of the future structure.
+A Stamp-O-Tron ground anchor is dropped on the surface, and becomes the root of the future structure.
 
-![A Clamp-O-Tron deployed on the ground](docs/00-Clamp-O-Tron.png)
+![A ground anchor deployed on the ground](docs/00-Ground-Anchor.png)
 
 ### 2. Parts are attached to it in EVA Construction Mode
 
@@ -68,8 +61,8 @@ longer has the shape it was given.
 ![After reload, with KSPCommunityFixes: the structure is distorted](docs/60-Save-And-Reload-KSPCommunityFixes.png)
 
 **In stock.** The structure keeps its shape, but the game raises *everything* until no part is
-underground — the ground anchor included. The Clamp-O-Tron, which was bolted to the surface, now
-floats in mid-air, and the whole structure hangs several meters above Minmus.
+underground — the ground anchor included. The anchor, which was bolted to the surface, now floats in
+mid-air, and the whole structure hangs several meters above Minmus.
 
 ![After reload, in stock: the whole structure floats above the ground](docs/60-Save-And-Reload-Stock.png)
 
@@ -93,67 +86,30 @@ requested move: the part travels up to the real ground contact, minus the config
 - The move is truncated rather than refused, so a part always ends up in contact with the ground
   instead of anywhere above it.
 
----
+## Works best with TerrainPrecisionFix
 
-# Fix 2 — Anchored bases that rise at every reload
+This mod stops a part at the ground it touches while it is being placed. It does that on its own,
+with or without any other mod. But two stock behaviours, which have nothing to do with placing parts,
+can still move what you built at the next load, and this mod cannot do anything about them.
+[TerrainPrecisionFix](https://github.com/lhervier/KSP-TerrainPrecisionFix) fixes both.
 
-## The problem
+**The ground does not come back at the same height.** KSP builds the ground again at every load, and
+every time it lands at a slightly different height. A part this mod stopped right on the surface can
+then come back slightly buried or slightly above it, and a large base can be strained at the first
+physics frame. TerrainPrecisionFix rebuilds the ground at the very same height every time, so a part
+stays where it was placed.
 
-This one is not about where the player puts the parts. Merely *touching* a part is enough — even
-moving it **upwards**, away from the ground.
+→ [Why the moving ground matters](https://github.com/lhervier/KSP-TerrainPrecisionFix/blob/main/README.md#why-the-moving-ground-matters)
 
-### 1. An engineer deploys a ground anchor
+**An anchored base is lifted at load.** KSP raises a vessel built on a ground anchor when it loads it,
+and the anchor, riveted to the ground, holds it there: the anchor's spikes come out of the ground, and
+a base can end up hanging in the air. This happens however carefully the parts were placed.
+TerrainPrecisionFix loads an anchored base where it was saved.
 
-![A ground anchor deployed on the surface](docs/ground-anchor/00-Anchor.png)
+→ [The ground anchor](https://github.com/lhervier/KSP-TerrainPrecisionFix/blob/main/README.md#the-ground-anchor)
 
-### 2. A part is attached to it in EVA Construction Mode
-
-![A fuel tank attached to the anchor](docs/ground-anchor/10-Add-part.png)
-
-### 3. The part is moved up, well clear of the ground
-
-The offset gizmo pulls the tank *away* from the surface, so nothing here can possibly be a case of a
-part being pushed underground.
-
-![The tank is moved up with the offset gizmo](docs/ground-anchor/20-move.png)
-
-### 4. Save, reload — and the anchor has taken off
-
-The anchor's spikes are out of the ground and the whole assembly floats above the grass. Do it again
-and it climbs a little higher.
-
-![After reload, the anchor floats above the ground](docs/ground-anchor/30-Anchor-in-the-air.png)
-
-## The fix
-
-With the mod installed, the very same save reloads with the anchor firmly seated where it was built.
-
-![After reload with the fix, the anchor is properly on the ground](docs/ground-anchor/50-Reload.png)
-
-What is really happening is that the saved position was right all along: KSP was lifting the vessel
-at load time, and the fix simply stops it from doing so.
-
-## Technical details
-
-`Vessel.GoOffRails` only spares a landed vessel whose stored PQS subdivision levels match the live
-terrain controller. A part dropped in EVA Construction Mode is created with those levels set to zero
-(`EVAConstructionModeEditor.GetProtoVesselNode` writes them in), so the vessel it becomes never
-passes that test and `CheckGroundCollision` re-grounds it at every load — placing it so that its
-lowest collider point rests exactly on the terrain, which for an anchor means spikes in the air. The
-10 cm dead zone that would normally absorb such a small correction is *explicitly disabled* for a
-vessel whose root part is a ground part, so an anchored base swallows corrections nothing else would.
-`KSP.log` shows the pass as `ground contact! - error. Moving Vessel up 0.001m`.
-
-The fix hooks `GameEvents.onProtoVesselLoad` and writes the levels the vessel should have had, which
-puts KSP back on its normal "nothing to do here" path. It only ever touches a landed vessel that
-carries a deployed ground anchor **and** was saved with uninitialized levels; a base whose levels are
-merely out of date (the terrain detail setting really did change) is left to KSP, and a freshly
-dropped anchor still gets its initial seating.
-
-It is also curative rather than palliative: the levels it writes are persisted by the next save, so
-a base only needs to be loaded once with the fix on to be repaired for good.
-
----
+Earlier versions of this mod kept anchored bases in place themselves, with a *Keep anchored bases in
+place* setting. That job is now TerrainPrecisionFix's, and the setting is gone.
 
 ## Settings
 
@@ -164,18 +120,16 @@ small settings window:
 - **Ground offset** - how far above the ground contact a part is stopped (0 by default, up to
   0.100 m). Raise it if parts still end up buried, leave it at 0 for parts to sit right on the
   surface.
-- **Keep anchored bases in place** - fix 2 above, on by default. Takes effect at the next load, since
-  a vessel already in the scene has been positioned already.
 
 They are settings of the *installation*, not of a save: they are stored in
 `GameData/EvaCMGroundMod/PluginData/settings.cfg` and applied as soon as they are changed. Deleting
-that file restores the defaults, which have both fixes on.
+that file restores the defaults.
 
 ## Installation
 
 1. Download the latest release
 2. Extract the contents to your KSP GameData folder
-3. Fix 1 activates when you enter EVA Construction Mode, fix 2 at the next vessel load
+3. The fix activates when you enter EVA Construction Mode
 
 ## Requirements
 
