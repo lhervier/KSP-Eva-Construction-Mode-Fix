@@ -7,8 +7,8 @@ bas — elles ont coûté une séance entière (2026-09-03).
 
 ## Comment ça marche aujourd'hui
 
-Un déplacement n'est plus **refusé**, il est **tronqué** : la pièce avance jusqu'au contact réel,
-moins la garde au sol. Trois étages, du moins cher au plus précis.
+Un déplacement n'est plus **refusé**, il est **tronqué** : la pièce avance jusqu'au contact réel
+(sans garde au sol depuis le 2026-10-14). Trois étages, du moins cher au plus précis.
 
 1. **Détecter** — `GetCastDistance` balaie la forme du collider (`Physics.BoxCastAll` /
    `SphereCastAll` / `CapsuleCastAll`) le long du déplacement. Il ne répond qu'à « y a-t-il quelque
@@ -41,7 +41,7 @@ plus un trou.
   pièce avance quand même vite.
 - **Un cast part toujours en arrière de la pièce.** Il rapporte ce qu'il chevauche déjà comme un hit
   à distance nulle et ne dit rien de ce qui suit. `GetCastDistance` recule donc son origine d'une
-  longueur de boîte (plus la garde au sol) et retranche autant du résultat. **Ne pas « corriger » en
+  longueur de boîte et retranche autant du résultat. **Ne pas « corriger » en
   filtrant les hits à distance nulle** : c'est ce qu'on avait fait, et ça neutralise la détection
   précisément au contact du sol, là où elle sert.
 

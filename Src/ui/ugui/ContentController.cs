@@ -1,9 +1,7 @@
 using System;
 using UnityEngine;
-using TMPro;
 using com.github.lhervier.ksp.shared;
 using com.github.lhervier.ksp.shared.ugui.combo;
-using com.github.lhervier.ksp.shared.ugui.slider;
 
 namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
 {
@@ -25,15 +23,9 @@ namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
         }
 
         private ComboController _logLevelCombo;
-        private SliderController _groundOffsetSlider;
-        private TextMeshProUGUI _groundOffsetValue;
-        public ContentController WithControls(ComboController logLevelCombo,
-                                              SliderController groundOffsetSlider,
-                                              TextMeshProUGUI groundOffsetValue)
+        public ContentController WithControls(ComboController logLevelCombo)
         {
             this._logLevelCombo = logLevelCombo;
-            this._groundOffsetSlider = groundOffsetSlider;
-            this._groundOffsetValue = groundOffsetValue;
             return this;
         }
 
@@ -45,16 +37,11 @@ namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
                 _logLevelCombo.SetOptions(LogLevels.Names, _viewModel.LogLevel.ToString());
                 _logLevelCombo.OnSelect.Add(OnLogLevelSelected);
             }
-            if (_groundOffsetSlider != null)
-            {
-                _groundOffsetSlider.OnValueChanged.Add(OnGroundOffsetDragged);
-            }
             // The controls do not update themselves on their own event, on purpose: what they display
             // comes back from the setting, so a value the view model refuses is never shown as chosen.
             if (_viewModel != null)
             {
                 _viewModel.OnLogLevelChanged.Add(OnLogLevelChanged);
-                _viewModel.OnGroundOffsetChanged.Add(OnGroundOffsetChanged);
             }
 
             // First sync of the freshly built window: OnEnable already ran (Unity fires it from
@@ -69,14 +56,9 @@ namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
             {
                 _logLevelCombo.OnSelect.Remove(OnLogLevelSelected);
             }
-            if (_groundOffsetSlider != null)
-            {
-                _groundOffsetSlider.OnValueChanged.Remove(OnGroundOffsetDragged);
-            }
             if (_viewModel != null)
             {
                 _viewModel.OnLogLevelChanged.Remove(OnLogLevelChanged);
-                _viewModel.OnGroundOffsetChanged.Remove(OnGroundOffsetChanged);
             }
         }
 
@@ -95,11 +77,6 @@ namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
             {
                 _logLevelCombo.Select(_viewModel.LogLevel.ToString());
             }
-            if (_groundOffsetSlider != null)
-            {
-                _groundOffsetSlider.SetValue(_viewModel.GroundOffset);
-            }
-            UpdateGroundOffsetValue();
         }
 
         // ==========================================================================
@@ -115,14 +92,6 @@ namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
             }
         }
 
-        private void OnGroundOffsetDragged(float value)
-        {
-            _viewModel.GroundOffset = value;
-            // The label follows the setting, not the handle: the view model snaps to the millimeter, so
-            // this shows what was really persisted rather than the raw position of the handle.
-            UpdateGroundOffsetValue();
-        }
-
         // ==========================================================================
         // View model -> controls
         // ==========================================================================
@@ -134,19 +103,6 @@ namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
             {
                 _logLevelCombo.Select(_viewModel.LogLevel.ToString());
             }
-        }
-
-        private void OnGroundOffsetChanged()
-        {
-            UpdateGroundOffsetValue();
-        }
-
-        private void UpdateGroundOffsetValue()
-        {
-            if (_groundOffsetValue == null || _viewModel == null) return;
-            _groundOffsetValue.text = ModLocalization.GetString(
-                "settingsGroundOffsetValue",
-                _viewModel.GroundOffset.ToString("0.000"));
         }
     }
 }

@@ -37,7 +37,7 @@ Le détail des enquêtes est sorti d'ici pour ne pas alourdir la lecture courant
 ## Ce que fait le mod, en une phrase
 
 Pendant le mode construction EVA, il écoute `GameEvents.onEditorPartEvent` et **tronque** le
-déplacement demandé : la pièce avance jusqu'au contact réel du sol, moins la garde au sol réglable.
+déplacement demandé : la pièce avance jusqu'au contact réel du sol, et s'y arrête.
 Tout est dans [`Src/EvaCMGroundMod.cs`](Src/EvaCMGroundMod.cs).
 
 ⚠️ Ce n'était pas le cas avant le 2026-09-03 : le mod **refusait** le déplacement et reposait la
@@ -78,12 +78,12 @@ dans l'historique git. Un `settings.cfg` qui porte encore `keepAnchoredBaseGroun
 Corrigé le 2026-09-02. `GetBoxColliders`, `GetCapsuleColliders`, `GetSphereColliders` et
 `GetMeshColliders` séparent :
 
-- `volumeWorldCenter` = `transform.TransformPoint(collider.center)` + décalage sol → pour la phase
-  large (`Physics.Overlap*`) ;
-- `transformWorldPosition` = `transform.position` + décalage sol → pour `GetPenetratingColliders`,
-  donc `Physics.ComputePenetration`.
+- `volumeWorldCenter` = `transform.TransformPoint(collider.center)` → pour la phase large
+  (`Physics.Overlap*`) ;
+- `transformWorldPosition` = `transform.position` → pour `GetPenetratingColliders`, donc
+  `Physics.ComputePenetration`.
 
-Le décalage sol (`GetGroundOffsetVector`) s'applique **aux deux**. Avant le correctif, une seule
+Avant le correctif, une seule
 variable `center` servait aux deux rôles, et la phase large cherchait au mauvais endroit pour tout
 collider décalé de l'origine de son transform : la pièce se posait dans le sol sans la moindre
 erreur. `GetMeshColliders` avait déjà le bon schéma et sert de modèle.
@@ -96,14 +96,18 @@ ceux du monde, d'où `Quaternion.identity` en rotation. Remultiplier par `lossyS
 boîte (×20 sur certaines pièces, ×0,5 sur d'autres) et lui appliquer `transform.rotation` permutait
 ses dimensions entre axes. Détail et mesures dans [CLAUDE-detection-sol.md](CLAUDE-detection-sol.md).
 
-## La garde au sol est une vraie distance
+## Plus de garde au sol
 
-Depuis la troncature, le paramètre n'est plus un biais sur un test booléen : il est **retranché du
-contact exact**, donc la pièce s'immobilise précisément à cette hauteur du sol. À 0 elle se pose au
-contact franc — une marge strictement positive garantit en revanche que la pose enregistrée est
-franchement non chevauchante malgré les arrondis. **Défaut : 0 depuis le 2026-09-08** (il était de
-1 cm) ; plafond 10 cm, curseur toujours en place. Lionel veut jouer sans marge et jugera sur pièce
-s'il faut la rétablir.
+Retirée le 2026-10-14 (Lionel : « comme on dépend de TPF, elle ne sert plus à rien ») : réglage
+`groundOffset`, curseur de la fenêtre, `GetGroundOffsetVector`. La pièce s'arrête toujours au dernier
+point sans contact trouvé par la dichotomie, ce que faisait déjà le défaut (0 depuis le 2026-09-08,
+1 cm avant). Une marge ne se justifiait que contre un sol qui ne revient pas à la même hauteur au
+chargement ; TPF le fixe. La fenêtre ne garde que le niveau de log. Un `settings.cfg` qui porte encore
+`groundOffset` est lu sans erreur, la clé saute au prochain enregistrement.
+
+Si une marge revenait un jour, se souvenir de deux défauts de l'ancienne : retranchée **le long du
+déplacement** et non verticalement (un ajustement final presque horizontal donnait une garde verticale
+quasi nulle), et décalant le volume de test vers le bas **en plus** dans les tests de chevauchement.
 
 ## Reproduire et valider
 
@@ -134,9 +138,3 @@ distingue pas les deux cas ; le croiser avec la couverture mesurée du collider.
   toujours. Piste esquissée, non implémentée — voir
   [CLAUDE-detection-sol.md](CLAUDE-detection-sol.md). Noter que ce n'est **pas** ce qui faisait
   monter les bases, contrairement à ce qu'on a cru un moment.
-- **La garde au sol est retranchée le long du déplacement**, pas verticalement — alors que le
-  comportement d'origine décalait le volume de test vers le bas (`GetGroundOffsetVector`). Un
-  ajustement final presque horizontal donne donc une garde verticale quasi nulle. Ça n'a pas eu de
-  conséquence mesurable (la marge à 10 cm ne change rien au symptôme qu'on lui imputait, cf.
-  [CLAUDE-rechargement.md](CLAUDE-rechargement.md)), mais l'écart entre le nom du paramètre et ce
-  qu'il fait reste à trancher.

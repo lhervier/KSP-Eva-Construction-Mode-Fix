@@ -1,26 +1,17 @@
 using System.Collections.Generic;
 using UnityEngine;
 using com.github.lhervier.ksp.shared;
-using com.github.lhervier.ksp.evacmgroundmod.settings;
 
 namespace com.github.lhervier.ksp.evacmgroundmod {
 
     /// <summary>
-    /// The fix itself: while EVA construction mode is on, a part that would end up in the ground is put
-    /// back where it last was.
+    /// The fix itself: while EVA construction mode is on, a part moved toward the ground stops where it
+    /// touches it.
     /// </summary>
     [KSPAddon(KSPAddon.Startup.PSystemSpawn, false)]
     public class EvaCMGroundMod : MonoBehaviour {
 
         private static readonly ModLogger LOGGER = new ModLogger("GroundFix");
-
-        /// <summary>
-        /// How far down the collision test volume is dropped before looking for the ground, in meters.
-        ///
-        /// Static, and read on every test rather than captured once: the settings window writes it live
-        /// (through the view model), while this addon is rebuilt at every scene change.
-        /// </summary>
-        public static float GroundOffset { get; set; } = EvaCMGroundSettings.GroundOffsetDefault;
 
         /// <summary>
         /// Layer mask for the colliders that we want to check.
@@ -127,17 +118,6 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
         }
 
         /// <summary>
-        /// The vector a collider's test volume is dropped by, so that a part is declared to be in the
-        /// ground slightly before it actually touches it.
-        /// </summary>
-        private static Vector3 GetGroundOffsetVector(Vector3 worldPosition) {
-            // Down is toward the center of the body, not world -Y: the flight scene is never aligned on
-            // the surface, so Vector3.up points away from the ground at a single spot on the planet.
-            Vector3 up = FlightGlobals.getUpAxis(FlightGlobals.currentMainBody, worldPosition);
-            return -up * GroundOffset;
-        }
-
-        /// <summary>
         /// Among the candidates the broad phase returned, those the collider really penetrates once
         /// placed at <paramref name="position"/>.
         /// </summary>
@@ -156,9 +136,9 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
                 }
                 if (Physics.ComputePenetration(
                     collider,
-                    // The dropped position, not collider.transform.position: this test is the one that
-                    // decides, so the ground offset has to reach it. Applied to the broad phase alone, it
-                    // would change nothing at all.
+                    // The transform's position, not the center of the volume the broad phase searched:
+                    // ComputePenetration places the collider by its transform and adds its local center
+                    // itself.
                     position,
                     collider.transform.rotation,
                     otherCollider, 
@@ -227,11 +207,9 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
             Vector3 scale = GetScale(boxCollider);
             
             // The broad phase is centered on the collider's own volume (transform + local center) and the
-            // penetration test on the transform, so the drop is applied to both rather than to a single
-            // shared center.
-            Vector3 offset = GetGroundOffsetVector(boxCollider.transform.position);
-            Vector3 volumeWorldCenter = boxCollider.transform.TransformPoint(boxCollider.center) + offset;
-            Vector3 transformWorldPosition = boxCollider.transform.position + offset;
+            // penetration test on the transform: two different points, never a single shared center.
+            Vector3 volumeWorldCenter = boxCollider.transform.TransformPoint(boxCollider.center);
+            Vector3 transformWorldPosition = boxCollider.transform.position;
 
             Vector3 scaledSize = Vector3.Scale(boxCollider.size, scale);
             Quaternion rotation = boxCollider.transform.rotation;
@@ -247,11 +225,9 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
 
         Collider[] GetCapsuleColliders(CapsuleCollider capsuleCollider) {
             // The broad phase is centered on the collider's own volume (transform + local center) and the
-            // penetration test on the transform, so the drop is applied to both rather than to a single
-            // shared center.
-            Vector3 offset = GetGroundOffsetVector(capsuleCollider.transform.position);
-            Vector3 volumeWorldCenter = capsuleCollider.transform.TransformPoint(capsuleCollider.center) + offset;
-            Vector3 transformWorldPosition = capsuleCollider.transform.position + offset;
+            // penetration test on the transform: two different points, never a single shared center.
+            Vector3 volumeWorldCenter = capsuleCollider.transform.TransformPoint(capsuleCollider.center);
+            Vector3 transformWorldPosition = capsuleCollider.transform.position;
 
             Vector3 scale = GetScale(capsuleCollider);
             
@@ -318,11 +294,9 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
             float scaledRadius = sphereCollider.radius * maxScale;
 
             // The broad phase is centered on the collider's own volume (transform + local center) and the
-            // penetration test on the transform, so the drop is applied to both rather than to a single
-            // shared center.
-            Vector3 offset = GetGroundOffsetVector(sphereCollider.transform.position);
-            Vector3 volumeWorldCenter = sphereCollider.transform.TransformPoint(sphereCollider.center) + offset;
-            Vector3 transformWorldPosition = sphereCollider.transform.position + offset;
+            // penetration test on the transform: two different points, never a single shared center.
+            Vector3 volumeWorldCenter = sphereCollider.transform.TransformPoint(sphereCollider.center);
+            Vector3 transformWorldPosition = sphereCollider.transform.position;
 
             Collider[] potentialColliders = Physics.OverlapSphere(
                 volumeWorldCenter,
@@ -333,21 +307,19 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
         }
 
         Collider[] GetMeshColliders(MeshCollider meshCollider) {
-            // The broad phase is centered on the bounds and the penetration test on the transform, so the
-            // drop is applied to both rather than to a single shared center.
-            Vector3 offset = GetGroundOffsetVector(meshCollider.transform.position);
-
+            // The broad phase is centered on the bounds and the penetration test on the transform: two
+            // different points, never a single shared center.
             // Collider.bounds is already a world space, axis aligned bounding box : its extents are world
             // units (no lossyScale to apply) and its axes are the world ones. Hence the identity rotation :
             // rotating that box with the transform would describe a volume the collider does not occupy.
             Collider[] potentialColliders = Physics.OverlapBox(
-                meshCollider.bounds.center + offset,
+                meshCollider.bounds.center,
                 meshCollider.bounds.extents,
                 Quaternion.identity,
                 LAYER_MASK
             );
 
-            return GetPenetratingColliders(meshCollider, meshCollider.transform.position + offset, potentialColliders);
+            return GetPenetratingColliders(meshCollider, meshCollider.transform.position, potentialColliders);
         }
 
         /// <summary>
@@ -436,7 +408,7 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
             // A cast reports whatever its shape already overlaps as a hit at distance zero, and tells
             // nothing of what lies further on. Starting it a shape's length behind gives it clear room to
             // begin in, and the same length is taken off the answer.
-            float backoff = GetProjectedExtent(collider.bounds, direction) + GroundOffset;
+            float backoff = GetProjectedExtent(collider.bounds, direction);
             Vector3 origin = -direction * backoff;
             float castDistance = distance + backoff;
 
@@ -564,7 +536,7 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
         /// <summary>
         /// Where <paramref name="part"/> ends up when moved from <paramref name="fromPosition"/> toward
         /// <paramref name="toPosition"/>: the target itself when the way is clear, otherwise the furthest
-        /// point along the way that still keeps its colliders <see cref="GroundOffset"/> clear of the ground.
+        /// point along the way where its colliders are still clear of the ground.
         /// </summary>
         private Vector3 GetReachablePosition(
             Part part,
@@ -643,8 +615,8 @@ namespace com.github.lhervier.ksp.evacmgroundmod {
                 }
             }
 
-            LOGGER.LogDebug($"Ground reached {free:F3} m away, stopping {GroundOffset:F3} m short of it");
-            return fromPosition + direction * Mathf.Max(0f, free - GroundOffset);
+            LOGGER.LogDebug($"Ground reached {free:F3} m away, stopping there");
+            return fromPosition + direction * free;
         }
 
         /// <summary>

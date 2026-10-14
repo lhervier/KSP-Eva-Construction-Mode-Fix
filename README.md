@@ -73,7 +73,7 @@ invalid placement impossible in the first place. Step 4 above simply cannot happ
 to go below the surface, so the reloaded structure is exactly the one that was built.
 
 While EVA Construction Mode is on, the mod watches every part being moved and **truncates** the
-requested move: the part travels up to the real ground contact, minus the configured ground offset.
+requested move: the part travels up to the real ground contact, and stops there.
 
 ## Technical details
 
@@ -81,8 +81,6 @@ requested move: the part travels up to the real ground contact, minus the config
   (`OverlapBox` / `OverlapCapsule` / `OverlapSphere`, then `ComputePenetration` to discard the
   overlaps that are not real penetrations).
 - Box, capsule, sphere and mesh colliders are all supported.
-- The configured *ground offset* is subtracted from that contact, so a part stops short of the
-  surface by exactly that distance. It is 0 by default: the part stops at the contact itself.
 - The move is truncated rather than refused, so a part always ends up in contact with the ground
   instead of anywhere above it.
 
@@ -114,16 +112,14 @@ place* setting. That job is now TerrainPrecisionFix's, and the setting is gone.
 ## Settings
 
 The mod adds a button to the application launcher (in flight and at the space center) that opens a
-small settings window:
+small settings window with a single setting, the **log level**: how much the mod writes to `KSP.log`.
 
-- **Log level** - how much the mod writes to `KSP.log`.
-- **Ground offset** - how far above the ground contact a part is stopped (0 by default, up to
-  0.100 m). Raise it if parts still end up buried, leave it at 0 for parts to sit right on the
-  surface.
+It is a setting of the *installation*, not of a save: it is stored in
+`GameData/EvaCMGroundMod/PluginData/settings.cfg` and applied as soon as it is changed. Deleting that
+file restores the default.
 
-They are settings of the *installation*, not of a save: they are stored in
-`GameData/EvaCMGroundMod/PluginData/settings.cfg` and applied as soon as they are changed. Deleting
-that file restores the defaults.
+Earlier versions also had a *Ground offset* setting, to stop a part some distance above the ground.
+It is gone: a part now always stops right at the contact.
 
 ## Installation
 

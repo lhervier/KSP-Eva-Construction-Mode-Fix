@@ -20,16 +20,11 @@ namespace com.github.lhervier.ksp.evacmgroundmod.ui
         public readonly EventVoid OnLogLevelChanged =
             new EventVoid("EvaCMGroundViewModel.OnLogLevelChanged");
 
-        /// <summary>Fired whenever <see cref="GroundOffset"/> changes.</summary>
-        public readonly EventVoid OnGroundOffsetChanged =
-            new EventVoid("EvaCMGroundViewModel.OnGroundOffsetChanged");
-
         /// <summary>Binds the view model to the settings and applies them. Call once, right after AddComponent.</summary>
         public EvaCMGroundViewModel WithSettings(EvaCMGroundSettings settings)
         {
             _settings = settings;
             ModLogger.SetLogLevel(settings.LogLevel);
-            EvaCMGroundMod.GroundOffset = settings.GroundOffset;
             return this;
         }
 
@@ -47,33 +42,6 @@ namespace com.github.lhervier.ksp.evacmgroundmod.ui
                 _settings.Save();
                 ModLogger.SetLogLevel(value);
                 OnLogLevelChanged.Fire();
-            }
-        }
-
-        /// <summary>
-        /// How far down the collision test volume is dropped before looking for the ground, in meters.
-        /// Set values are snapped to the millimeter and clamped to what the settings allow, so a slider
-        /// dragged anywhere in its track never persists a value the file would refuse on reload.
-        /// </summary>
-        public float GroundOffset
-        {
-            get { return _settings != null ? _settings.GroundOffset : EvaCMGroundSettings.GroundOffsetDefault; }
-            set
-            {
-                if (_settings == null)
-                {
-                    return;
-                }
-                float snapped = Mathf.Round(
-                    Mathf.Clamp(value, EvaCMGroundSettings.GroundOffsetMin, EvaCMGroundSettings.GroundOffsetMax) * 1000f) / 1000f;
-                if (Mathf.Approximately(_settings.GroundOffset, snapped))
-                {
-                    return;
-                }
-                _settings.GroundOffset = snapped;
-                _settings.Save();
-                EvaCMGroundMod.GroundOffset = snapped;
-                OnGroundOffsetChanged.Fire();
             }
         }
     }

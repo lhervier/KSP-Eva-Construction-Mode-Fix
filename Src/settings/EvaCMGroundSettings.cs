@@ -20,28 +20,10 @@ namespace com.github.lhervier.ksp.evacmgroundmod.settings
         private const string ConfigFile = "settings.cfg";
         private const string GeneralNode = "GENERAL";
 
-        /// <summary>Smallest ground offset the UI offers (m).</summary>
-        public const float GroundOffsetMin = 0f;
-
-        /// <summary>Largest ground offset the UI offers (m).</summary>
-        public const float GroundOffsetMax = 0.1f;
-
-        /// <summary>
-        /// Default ground offset (m): none. A part stops at the exact contact point, and the player who
-        /// wants a margin raises the slider.
-        /// </summary>
-        public const float GroundOffsetDefault = 0f;
-
         private readonly string _path;
 
         /// <summary>How verbose the mod's logging is.</summary>
         public LogLevel LogLevel { get; set; }
-
-        /// <summary>
-        /// How far down the collision test volume is dropped before looking for the ground, in meters.
-        /// The bigger it is, the earlier a part is declared to be in the ground.
-        /// </summary>
-        public float GroundOffset { get; set; }
 
         public EvaCMGroundSettings()
         {
@@ -54,7 +36,6 @@ namespace com.github.lhervier.ksp.evacmgroundmod.settings
         {
             // Same default as the sibling mods: what the player is meant to see in KSP.log, no more.
             LogLevel = LogLevel.Info;
-            GroundOffset = GroundOffsetDefault;
         }
 
         /// <summary>Reads the settings file, falling back on the defaults when it is missing or unreadable.</summary>
@@ -89,13 +70,7 @@ namespace com.github.lhervier.ksp.evacmgroundmod.settings
                 LOGGER.LogWarning($"Unknown log level '{logLevel}', keeping {LogLevel}");
             }
 
-            float groundOffset = GroundOffset;
-            general.TryGetValue("groundOffset", ref groundOffset);
-            // Clamped rather than refused: a hand-edited file is worth honoring, but a negative offset
-            // would lift the test volume off the ground and a huge one would refuse every position.
-            GroundOffset = UnityEngine.Mathf.Clamp(groundOffset, GroundOffsetMin, GroundOffsetMax);
-
-            LOGGER.LogInfo($"Settings loaded from {_path} (logLevel={LogLevel}, groundOffset={GroundOffset})");
+            LOGGER.LogInfo($"Settings loaded from {_path} (logLevel={LogLevel})");
         }
 
         /// <summary>Writes the settings file, creating PluginData/ on first save.</summary>
@@ -106,7 +81,6 @@ namespace com.github.lhervier.ksp.evacmgroundmod.settings
                 ConfigNode root = new ConfigNode();
                 ConfigNode general = root.AddNode(GeneralNode);
                 general.AddValue("logLevel", LogLevel.ToString());
-                general.AddValue("groundOffset", GroundOffset);
 
                 Directory.CreateDirectory(Path.GetDirectoryName(_path));
                 root.Save(_path);
