@@ -3,9 +3,9 @@ using UnityEngine.UI;
 using com.github.lhervier.ksp.shared;
 using com.github.lhervier.ksp.shared.ugui;
 using com.github.lhervier.ksp.shared.ugui.combo;
-using com.github.lhervier.ksp.evacmgroundmod.ui.styles;
+using com.github.lhervier.ksp.evaconstructionmodefix.ui.styles;
 
-namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
+namespace com.github.lhervier.ksp.evaconstructionmodefix.ui.ugui
 {
     /// <summary>
     /// Popup content (everything below the shared title bar): the log level combo.

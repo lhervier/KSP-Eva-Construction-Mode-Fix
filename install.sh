@@ -2,5 +2,5 @@
 # Thin wrapper: delegates to the shared generic install in KSP-Shared/tools.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
-export MOD_NAME="EvaCMGroundMod"
+export MOD_NAME="EvaConstructionModeFixMod"
 exec bash KSP-Shared/tools/install.sh

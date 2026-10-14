@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using com.github.lhervier.ksp.shared;
 
-namespace com.github.lhervier.ksp.evacmgroundmod {
+namespace com.github.lhervier.ksp.evaconstructionmodefix {
 
     /// <summary>
     /// The fix itself: while EVA construction mode is on, a part moved toward the ground stops where it

@@ -3,7 +3,7 @@ using UnityEngine;
 using com.github.lhervier.ksp.shared;
 using com.github.lhervier.ksp.shared.ugui.combo;
 
-namespace com.github.lhervier.ksp.evacmgroundmod.ui.ugui
+namespace com.github.lhervier.ksp.evaconstructionmodefix.ui.ugui
 {
     /// <summary>
     /// Behaviour of the window content: each control drives its setting through the view model, and is

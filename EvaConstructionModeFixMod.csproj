@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
-    <AssemblyName>EvaCMGroundMod</AssemblyName>
-    <RootNamespace>com.github.lhervier.ksp.evacmgroundmod</RootNamespace>
+    <AssemblyName>EvaConstructionModeFixMod</AssemblyName>
+    <RootNamespace>com.github.lhervier.ksp.evaconstructionmodefix</RootNamespace>
     <OutputType>Library</OutputType>
     <OutputPath>Output\bin</OutputPath>
     <IntermediateOutputPath>Output\obj</IntermediateOutputPath>

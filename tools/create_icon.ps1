@@ -54,7 +54,7 @@ $hatchRun       = 0.130
 $hatchThickness = 0.060
 
 # Resolve the output relative to this script, independent of the CWD.
-$iconPath = Join-Path $PSScriptRoot '..\GameData\EvaCMGroundMod\icon.png'
+$iconPath = Join-Path $PSScriptRoot '..\GameData\EvaConstructionModeFixMod\icon.png'
 $iconPath = [System.IO.Path]::GetFullPath($iconPath)
 
 $work = $size * $scale

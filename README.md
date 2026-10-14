@@ -115,7 +115,7 @@ The mod adds a button to the application launcher (in flight and at the space ce
 small settings window with a single setting, the **log level**: how much the mod writes to `KSP.log`.
 
 It is a setting of the *installation*, not of a save: it is stored in
-`GameData/EvaCMGroundMod/PluginData/settings.cfg` and applied as soon as it is changed. Deleting that
+`GameData/EvaConstructionModeFixMod/PluginData/settings.cfg` and applied as soon as it is changed. Deleting that
 file restores the default.
 
 Earlier versions also had a *Ground offset* setting, to stop a part some distance above the ground.
