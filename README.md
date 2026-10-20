@@ -108,7 +108,7 @@ and the anchor, riveted to the ground, holds it there: the anchor's spikes come 
 a base can end up hanging in the air. This happens however carefully the parts were placed.
 TerrainPrecisionFix loads an anchored base where it was saved.
 
-→ [The ground anchor](https://github.com/lhervier/KSP-TerrainPrecisionFix/blob/main/README.md#the-ground-anchor)
+→ [The ground anchor](https://github.com/lhervier/KSP-TerrainPrecisionFix/blob/main/docs/ground-anchor/README.md)
 
 Earlier versions of this mod kept anchored bases in place themselves, with a *Keep anchored bases in
 place* setting. That job is now TerrainPrecisionFix's, and the setting is gone.
