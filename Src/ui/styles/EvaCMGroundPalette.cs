@@ -1,4 +1,4 @@
-namespace com.github.lhervier.ksp.evaconstructionmodefix.ui.styles
+namespace com.github.lhervier.ksp.fix.evaconstructionmode.ui.styles
 {
     /// <summary>
     /// Sizes proper to the settings window. Anything already shared (label color, combo metrics) comes

@@ -1,8 +1,8 @@
 using UnityEngine;
 using com.github.lhervier.ksp.shared;
-using com.github.lhervier.ksp.evaconstructionmodefix.settings;
+using com.github.lhervier.ksp.fix.evaconstructionmode.settings;
 
-namespace com.github.lhervier.ksp.evaconstructionmodefix
+namespace com.github.lhervier.ksp.fix.evaconstructionmode
 {
     /// <summary>
     /// One-shot startup addon: applies the persisted settings (log level), once for the whole KSP

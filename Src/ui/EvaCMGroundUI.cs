@@ -2,11 +2,11 @@ using KSP.UI.Screens;
 using UnityEngine;
 using com.github.lhervier.ksp.shared;
 using com.github.lhervier.ksp.shared.ugui.popup;
-using com.github.lhervier.ksp.evaconstructionmodefix.settings;
-using com.github.lhervier.ksp.evaconstructionmodefix.ui.styles;
-using com.github.lhervier.ksp.evaconstructionmodefix.ui.ugui;
+using com.github.lhervier.ksp.fix.evaconstructionmode.settings;
+using com.github.lhervier.ksp.fix.evaconstructionmode.ui.styles;
+using com.github.lhervier.ksp.fix.evaconstructionmode.ui.ugui;
 
-namespace com.github.lhervier.ksp.evaconstructionmodefix.ui
+namespace com.github.lhervier.ksp.fix.evaconstructionmode.ui
 {
     /// <summary>
     /// UI entry point: the toolbar button and the uGUI settings window it toggles. The window is driven by

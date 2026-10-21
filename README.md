@@ -5,7 +5,7 @@ the ground. Nothing in the game refuses it, and the damage only shows up on the 
 tries to put the vessel back above the surface.
 
 It works on its own, and is best paired with
-[TerrainPrecisionFix](https://github.com/lhervier/KSP-TerrainPrecisionFix): see
+[TerrainPrecisionFix](https://github.com/lhervier/KSP-Fix-TerrainPrecision): see
 [Works best with TerrainPrecisionFix](#works-best-with-terrainprecisionfix).
 
 EVA Construction Mode has other stock bugs, which this mod does not fix (yet): parts that come back
@@ -93,7 +93,7 @@ requested move: the part travels up to the real ground contact, and stops there.
 This mod stops a part at the ground it touches while it is being placed. It does that on its own,
 with or without any other mod. But two stock behaviours, which have nothing to do with placing parts,
 can still move what you built at the next load, and this mod cannot do anything about them.
-[TerrainPrecisionFix](https://github.com/lhervier/KSP-TerrainPrecisionFix) fixes both.
+[TerrainPrecisionFix](https://github.com/lhervier/KSP-Fix-TerrainPrecision) fixes both.
 
 **The ground does not come back at the same height.** KSP builds the ground again at every load, and
 every time it lands at a slightly different height. A part this mod stopped right on the surface can
@@ -101,14 +101,14 @@ then come back slightly buried or slightly above it, and a large base can be str
 physics frame. TerrainPrecisionFix rebuilds the ground at the very same height every time, so a part
 stays where it was placed.
 
-→ [Why the moving ground matters](https://github.com/lhervier/KSP-TerrainPrecisionFix/blob/main/README.md#why-the-moving-ground-matters)
+→ [Why the moving ground matters](https://github.com/lhervier/KSP-Fix-TerrainPrecision/blob/main/README.md#why-the-moving-ground-matters)
 
 **An anchored base is lifted at load.** KSP raises a vessel built on a ground anchor when it loads it,
 and the anchor, riveted to the ground, holds it there: the anchor's spikes come out of the ground, and
 a base can end up hanging in the air. This happens however carefully the parts were placed.
 TerrainPrecisionFix loads an anchored base where it was saved.
 
-→ [The ground anchor](https://github.com/lhervier/KSP-TerrainPrecisionFix/blob/main/docs/ground-anchor/README.md)
+→ [The ground anchor](https://github.com/lhervier/KSP-Fix-TerrainPrecision/blob/main/docs/ground-anchor/README.md)
 
 Earlier versions of this mod kept anchored bases in place themselves, with a *Keep anchored bases in
 place* setting. That job is now TerrainPrecisionFix's, and the setting is gone.
@@ -245,7 +245,7 @@ The mod adds a button to the application launcher (in flight and at the space ce
 small settings window with a single setting, the **log level**: how much the mod writes to `KSP.log`.
 
 It is a setting of the *installation*, not of a save: it is stored in
-`GameData/EvaConstructionModeFixMod/PluginData/settings.cfg` and applied as soon as it is changed. Deleting that
+`GameData/KSPFixEvaConstructionMode/PluginData/settings.cfg` and applied as soon as it is changed. Deleting that
 file restores the default.
 
 Earlier versions also had a *Ground offset* setting, to stop a part some distance above the ground.

@@ -1,8 +1,8 @@
 using UnityEngine;
 using com.github.lhervier.ksp.shared;
-using com.github.lhervier.ksp.evaconstructionmodefix.settings;
+using com.github.lhervier.ksp.fix.evaconstructionmode.settings;
 
-namespace com.github.lhervier.ksp.evaconstructionmodefix.ui
+namespace com.github.lhervier.ksp.fix.evaconstructionmode.ui
 {
     /// <summary>
     /// State of the settings window: plain properties that fire a KSP EventVoid on change, which the uGUI
